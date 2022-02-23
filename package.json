@@ -1,0 +1,23 @@
+{
+    "name": "autoolymp",
+    "version": "1.0.0",
+    "main": "main.js",
+    "bin": "bin.js",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "pkg": {
+        "scripts": "node_modules/**/*.js"
+    },
+    "author": "Jatin Garg",
+    "license": "ISC",
+    "description": "",
+    "dependencies": {
+        "axios": "^0.26.0",
+        "http": "^0.0.1-security",
+        "jsdom": "^19.0.0",
+        "pdf2json": "^2.0.0",
+        "pkg": "^5.5.2",
+        "xlsx": "^0.18.2"
+    }
+}
