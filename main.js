@@ -1,14 +1,18 @@
-var FormData = require("form-data");
 var axios = require("axios");
 var jsdom = require("jsdom");
-const { JSDOM } = jsdom;
+var https = require("https");
+var http = require("http");
 var fs = require("fs");
 var path = require("path");
+var root = __dirname;
+var PDFParser = require("pdf2json");
+const httpAgent = new http.Agent({ keepAlive: true });
 
 module.exports = function () {
-    const delay = (ms) => new Promise((res) => setTimeout(res, ms));
+    const { JSDOM } = jsdom;
     const reader = require("xlsx");
     const file = reader.readFile("data.xlsx", { cellDates: true });
+
     let arr = [];
     let output = [];
     let process_array = [];
@@ -23,12 +27,11 @@ module.exports = function () {
     }
 
     for (let i = 0; i < arr.length; i++) {
-        let temp = arr[i]["DOB"];
+        let temp = arr[i]["dob"];
         let vals = temp.split("/");
         if (vals.length > 0 && vals[0].length == 1) vals[0] = "0" + vals[0];
         if (vals.length > 1 && vals[1].length == 1) vals[1] = "0" + vals[1];
-
-        if (vals.length > 2) arr[i]["DOB"] = vals[1] + "/" + vals[0] + "/" + vals[2];
+        if (vals.length > 2) arr[i]["dob"] = vals[0] + "/" + vals[1] + "/" + vals[2];
     }
 
     const commit = () => {
@@ -43,6 +46,10 @@ module.exports = function () {
         });
     };
 
+    const write_to_sheet = (data) => {
+        output.push(data);
+    };
+
     const stripspacs = (str) => {
         let dat = str.split("\n");
         let t = "";
@@ -55,143 +62,143 @@ module.exports = function () {
 
         return t;
     };
-    const write_to_sheet = (obj) => {
-        output.push(obj);
-    };
-    const scrape_data = (obj, dom) => {
-        obj["valid"] = "YES";
-        let header = dom.window.document.getElementsByClassName("col-sm-4");
-        for (let i = 0; i < header.length; i++) {
-            let str = stripspacs(header[i].textContent).split(":");
-            if (str.length == 2) {
-                if (str[0] == "FullName") obj["Name"] = str[1];
-                if (str[0] == "RollNumber") obj["Roll Number"] = str[1];
-            }
-        }
-        let middle = dom.window.document.getElementsByClassName("col-sm-3");
-        for (let i = 0; i < middle.length; i++) {
-            let str = stripspacs(middle[i].textContent).split(":");
-            if (str.length == 2) {
-                if (str[0] == "TotalAttended") obj["Total Attended"] = str[1];
-                if (str[0] == "TotalNotAttended") obj["Total Not Attended"] = str[1];
-                if (str[0] == "TotalCorrect") obj["Total Correct"] = str[1];
-                if (str[0] == "TotalWrong") obj["Total Wrong"] = str[1];
-            }
-        }
 
-        middle = dom.window.document.getElementsByClassName("col-sm-12");
-
-        for (let i = 0; i < middle.length; i++) {
-            let str = stripspacs(middle[i].textContent).split(":");
-            if (str.length == 2) {
-                if (str[0] == "TentativeScores") obj["Tentative Score"] = str[1];
-            }
+    const remove_empty = (arr) => {
+        let temp = [];
+        for (let i = 0; i < arr.length; i++) {
+            if (arr[i] != "") temp.push(arr[i]);
         }
-
-        let table = dom.window.document.getElementsByTagName("tr");
-        for (let i = 1; i < table.length; i++) {
-            let child = table[i].childNodes;
-            if (child.length <= 7) {
-                console.log("There is some error, Contact developer");
-            } else {
-                obj[i] = stripspacs(child[7].textContent);
-            }
-        }
-        //console.log(obj);
-        write_to_sheet(obj);
+        return temp;
     };
 
-    const get_result = async (obj, data) => {
+    const extract = (data, page) => {
+        const dom = new JSDOM(page);
+        let title = dom.window.document.title;
+        let process_array = [];
+        if (title[0] == "I") {
+            data["Valid"] = "NO";
+            write_to_sheet(data);
+        } else {
+            data["Valid"] = "YES";
+            let names = dom.window.document.getElementsByClassName("col-sm-12");
+            data["Score"] = names[3].childNodes[3].innerHTML;
+            // if (names.length > 3 && names[3].childNodes.length > 3) data["First Name"] = names[3].childNodes[3].textContent;
+            // if (names.length > 5 && names[5].childNodes.length > 3) data["Last Name"] = names[5].childNodes[3].textContent;
+            // let arr = dom.window.document.getElementsByClassName("col-sm-6");
+            // if (arr.length > 0 && arr[0].childNodes.length > 5) data["Mobile"] = arr[0].childNodes[5].textContent;
+            // if (arr.length > 1 && arr[1].childNodes.length > 3) data["Email"] = arr[1].childNodes[3].textContent;
+            // let subjects = ["PrevSubJ1", "PrevSubP1", "PrevSubB1", "PrevSubC1", "PrevSubA1", "PrevSubM1"];
+            // let pref = ["PrevCen1", "PrevCen2", "PrevCen3"];
+            // let temp = ["First Preference", "Second Preference", "Third Preference"];
+            // for (let i = 0; i < pref.length; i++) {
+            //     let arr = dom.window.document.getElementById(pref[i]).childNodes;
+            //     if (arr.length > 3) {
+            //         let center = stripspacs(arr[3].textContent);
+            //         data[temp[i]] = center;
+            //     }
+            // }
+            // for (let i = 0; i < subjects.length; i++) {
+            //     let arr = dom.window.document.getElementById(subjects[i]).childNodes;
+            //     if (arr.length > 5) {
+            //         let temp = stripspacs(arr[5].textContent);
+            //         let subject = stripspacs(arr[1].textContent);
+            //         data[subject] = temp;
+            //         if (temp != "0") {
+            //             console.log(subject);
+            //             process_array.push([JSON.parse(JSON.stringify(data)), subject]);
+            //         }
+            //     }
+            // }
+            write_to_sheet(data);
+        }
+        return process_array;
+    };
+    const make_request = async (data, obj) => {
         var config = {
             method: "post",
-            url: "https://reg.ioqexam.in/Login",
+            url: "https://emsecure.in/MTAstudent/Login",
             headers: {
                 Cookie: ".ASPXAUTH=1C5072A12029D5BDEDBA4A8B2BF34BCF93857C12508D6E08AE261C8E09F777DCCDE6BEF372BE71DE3F2030333E8FFCFF27B64BF33553EB86C03D0916B49E1AAF66BB4E0F1FCBB789BFDADB1BCDA8BB5E486C1A7951B5FD2DFA06F2EA3676FCA5177C0105AA679CC7B7A487FE7220EF7F; ASP.NET_SessionId=vw1mld10s5lgaabp4nbts1mr",
                 ...data.getHeaders(),
             },
             data: data,
         };
+
+        // const aux_func = async (vals) => {
+        //     let obj = vals[0];
+        //     let subject = vals[1];
+        //     if (subject == -1) {
+        //         write_to_sheet(obj);
+        //         return;
+        //     }
+        //     let url = getFileUrl(obj, subject);
+        //     let regn = obj["Registration No."];
+        //     var dir = "./Admit_Cards";
+        //     if (!fs.existsSync(dir)) {
+        //         fs.mkdirSync(dir);
+        //     }
+        //     var config2 = {
+        //         method: "get",
+        //         url: url,
+        //         headers: {
+        //             Cookie: ".ASPXAUTH=1C5072A12029D5BDEDBA4A8B2BF34BCF93857C12508D6E08AE261C8E09F777DCCDE6BEF372BE71DE3F2030333E8FFCFF27B64BF33553EB86C03D0916B49E1AAF66BB4E0F1FCBB789BFDADB1BCDA8BB5E486C1A7951B5FD2DFA06F2EA3676FCA5177C0105AA679CC7B7A487FE7220EF7F; ASP.NET_SessionId=vw1mld10s5lgaabp4nbts1mr",
+        //         },
+        //         responseType: "stream",
+        //     };
+        //     await axios(config2).then((res) => {
+        //         const pat = path.resolve("Admit_Cards", subject + "_" + regn + ".pdf");
+        //         const writeStream = fs.createWriteStream(pat);
+        //         res.data.pipe(writeStream);
+        //         writeStream.on("finish", () => {
+        //             writeStream.close();
+        //             const pdfParser = new PDFParser(this, 1);
+        //             pdfParser.on("pdfParser_dataReady", (pdfData) => {
+        //                 if (subject == "IOQM") {
+        //                     process2(obj, pdfParser.getRawTextContent(pdfData));
+        //                 }
+        //             });
+        //             pdfParser.loadPDF(pat);
+        //         });
+        //     });
+        // };
+        // let arr = [];
         await axios(config)
-            .then(async function (response) {
-                const dom = new JSDOM(response.data);
-                let title = dom.window.document.title;
-                if (title[0] == "I") {
-                    obj["valid"] = "NO";
-                    write_to_sheet(obj);
-                } else {
-                    let url = `https://reg.ioqexam.in/Application/Results?Regno=${obj["RegNo"]}&ioqSubject=IOQM`;
-                    var config2 = {
-                        method: "get",
-                        url: url,
-                        headers: {
-                            Cookie: ".ASPXAUTH=1C5072A12029D5BDEDBA4A8B2BF34BCF93857C12508D6E08AE261C8E09F777DCCDE6BEF372BE71DE3F2030333E8FFCFF27B64BF33553EB86C03D0916B49E1AAF66BB4E0F1FCBB789BFDADB1BCDA8BB5E486C1A7951B5FD2DFA06F2EA3676FCA5177C0105AA679CC7B7A487FE7220EF7F; ASP.NET_SessionId=vw1mld10s5lgaabp4nbts1mr",
-                        },
-                    };
-                    await axios(config2)
-                        .then(function (response) {
-                            const dom = new JSDOM(response.data);
-                            let title = dom.window.document.title;
-                            if (title[0] == "D") {
-                                obj["valid"] = "NO";
-                                write_to_sheet(obj);
-                            } else if (title[0] == "I") {
-                                console.log("Some error Occured, Contact developer");
-                            } else {
-                                scrape_data(obj, dom);
-                            }
-                        })
-                        .catch(function (error) {
-                            obj["valid"] = "NO";
-                            write_to_sheet(obj);
-                        });
-                }
+            .then(function (response) {
+                extract(obj, response.data);
             })
             .catch(function (error) {
+                console.log("Error occured for current entry");
                 obj["valid"] = "NO";
                 write_to_sheet(obj);
             });
+        // for (let i = 0; i < arr.length; i++) {
+        //     await aux_func(arr[i]);
+        // }
     };
 
-    const main = async () => {
+    //make_request(data, obj);
+    const func = async () => {
         for (let i = 0; i < arr.length; i++) {
-            let regno = arr[i]["Reg No."];
-            let dob = arr[i]["DOB"];
+            var FormData = require("form-data");
             var data = new FormData();
-            data.append("RegNo", regno);
-            data.append("DOB", dob);
-            var obj = {
-                RegNo: "",
+            var obj = new Object();
+            obj = {
+                "Registration No.": "",
                 DOB: "",
-                Name: "",
-                valid: "",
-                "Roll Number": "",
-                "Total Attended": "",
-                "Total Not Attended": "",
-                "Total Correct": "",
-                "Total Wrong": "",
-                "Tentative Score": "",
-                1: "",
-                2: "",
-                3: "",
-                4: "",
-                5: "",
-                6: "",
-                7: "",
-                8: "",
-                9: "",
-                10: "",
-                11: "",
-                12: "",
+                Score: "",
+                Valid: "",
             };
-            obj["RegNo"] = regno;
-            obj["DOB"] = dob;
+            obj["Registration No."] = arr[i]["reg_no"];
+            obj["DOB"] = arr[i]["dob"];
+            data.append("RegNo", arr[i]["reg_no"]);
+            data.append("DOB", arr[i]["dob"]);
             console.log("Processing Entry ", i + 1);
-            await get_result(obj, data);
-            // await delay(3000);
+            const result = await make_request(data, obj);
+            //await delay(2000);
         }
     };
 
-    main().then(() => {
+    func().then((data) => {
         commit();
         console.log("Completed !");
     });
