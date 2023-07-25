@@ -6,6 +6,8 @@ var fs = require("fs");
 var path = require("path");
 var root = __dirname;
 var PDFParser = require("pdf2json");
+const cheerio = require("cheerio");
+
 const httpAgent = new http.Agent({ keepAlive: true });
 
 module.exports = function () {
@@ -71,121 +73,71 @@ module.exports = function () {
         return temp;
     };
 
-    const extract = (data, page) => {
+    const extract = (obj, page) => {
         const dom = new JSDOM(page);
         let title = dom.window.document.title;
         let process_array = [];
         if (title[0] == "I") {
-            data["Valid"] = "NO";
-            write_to_sheet(data);
+            obj["Valid"] = "NO";
+            write_to_sheet(obj);
         } else {
-            data["Valid"] = "YES";
-            let names = dom.window.document.getElementsByClassName("col-sm-12");
-            data["Score"] = names[3].childNodes[3].innerHTML;
-            // if (names.length > 3 && names[3].childNodes.length > 3) data["First Name"] = names[3].childNodes[3].textContent;
-            // if (names.length > 5 && names[5].childNodes.length > 3) data["Last Name"] = names[5].childNodes[3].textContent;
-            // let arr = dom.window.document.getElementsByClassName("col-sm-6");
-            // if (arr.length > 0 && arr[0].childNodes.length > 5) data["Mobile"] = arr[0].childNodes[5].textContent;
-            // if (arr.length > 1 && arr[1].childNodes.length > 3) data["Email"] = arr[1].childNodes[3].textContent;
-            // let subjects = ["PrevSubJ1", "PrevSubP1", "PrevSubB1", "PrevSubC1", "PrevSubA1", "PrevSubM1"];
-            // let pref = ["PrevCen1", "PrevCen2", "PrevCen3"];
-            // let temp = ["First Preference", "Second Preference", "Third Preference"];
-            // for (let i = 0; i < pref.length; i++) {
-            //     let arr = dom.window.document.getElementById(pref[i]).childNodes;
-            //     if (arr.length > 3) {
-            //         let center = stripspacs(arr[3].textContent);
-            //         data[temp[i]] = center;
-            //     }
-            // }
-            // for (let i = 0; i < subjects.length; i++) {
-            //     let arr = dom.window.document.getElementById(subjects[i]).childNodes;
-            //     if (arr.length > 5) {
-            //         let temp = stripspacs(arr[5].textContent);
-            //         let subject = stripspacs(arr[1].textContent);
-            //         data[subject] = temp;
-            //         if (temp != "0") {
-            //             console.log(subject);
-            //             process_array.push([JSON.parse(JSON.stringify(data)), subject]);
-            //         }
-            //     }
-            // }
-            write_to_sheet(data);
+            const $ = cheerio.load(page);
+            let first_name = $("#counts > div > div > div > div > div > div > div > div > div > div > div.row.text-left > div:nth-child(2) > div:nth-child(1) > div:nth-child(1) > label.font-weight-bold.text-danger").text();
+            let middle_name = $("#counts > div > div > div > div > div > div > div > div > div > div > div.row.text-left > div:nth-child(2) > div:nth-child(1) > div:nth-child(2) > label.font-weight-bold.text-danger").text();
+            let last_name = $("#counts > div > div > div > div > div > div > div > div > div > div > div.row.text-left > div:nth-child(2) > div:nth-child(1) > div:nth-child(3) > label.font-weight-bold.text-danger").text();
+            let mobile_no = $("#counts > div > div > div > div > div > div > div > div > div > div > div.row.text-left > div:nth-child(2) > div:nth-child(2) > div:nth-child(1) > label.font-weight-bold.text-danger").text();
+            let email = $("#counts > div > div > div > div > div > div > div > div > div > div > div.row.text-left > div:nth-child(2) > div:nth-child(2) > div:nth-child(2) > label.font-weight-bold.text-danger").text();
+            let subject = $("#counts > div > div > div > div > div > div > div > div > div > div > div.row.text-left > div:nth-child(3) > div > div:nth-child(3) > label.font-weight-bold.text-danger.text-center").text();
+            let language = $("#counts > div > div > div > div > div > div > div > div > div > div > div.row.text-left > div:nth-child(3) > div > div:nth-child(4) > label.font-weight-bold.text-danger").text();
+            let fee_paid = $("#counts > div > div > div > div > div > div > div > div > div > div > div:nth-child(11) > div:nth-child(1) > label.font-weight-bold.text-success").text();
+            obj["Valid"] = "YES";
+            obj["First Name"] = first_name;
+            obj["Middle Name"] = middle_name;
+            obj["Last Name"] = last_name;
+            obj["Mobile No."] = mobile_no;
+            obj["Email"] = email;
+            obj["Subject"] = subject;
+            obj["Language"] = language;
+            obj["Fee Paid"] = fee_paid;
+            write_to_sheet(obj);
         }
         return process_array;
     };
     const make_request = async (data, obj) => {
         var config = {
             method: "post",
-            url: "https://emsecure.in/MTAstudent/Login",
+            url: "https://stureg.ioqmexam.in/Login",
             headers: {
-                Cookie: ".ASPXAUTH=1C5072A12029D5BDEDBA4A8B2BF34BCF93857C12508D6E08AE261C8E09F777DCCDE6BEF372BE71DE3F2030333E8FFCFF27B64BF33553EB86C03D0916B49E1AAF66BB4E0F1FCBB789BFDADB1BCDA8BB5E486C1A7951B5FD2DFA06F2EA3676FCA5177C0105AA679CC7B7A487FE7220EF7F; ASP.NET_SessionId=vw1mld10s5lgaabp4nbts1mr",
+                Cookie: "",
                 ...data.getHeaders(),
             },
             data: data,
         };
-
-        // const aux_func = async (vals) => {
-        //     let obj = vals[0];
-        //     let subject = vals[1];
-        //     if (subject == -1) {
-        //         write_to_sheet(obj);
-        //         return;
-        //     }
-        //     let url = getFileUrl(obj, subject);
-        //     let regn = obj["Registration No."];
-        //     var dir = "./Admit_Cards";
-        //     if (!fs.existsSync(dir)) {
-        //         fs.mkdirSync(dir);
-        //     }
-        //     var config2 = {
-        //         method: "get",
-        //         url: url,
-        //         headers: {
-        //             Cookie: ".ASPXAUTH=1C5072A12029D5BDEDBA4A8B2BF34BCF93857C12508D6E08AE261C8E09F777DCCDE6BEF372BE71DE3F2030333E8FFCFF27B64BF33553EB86C03D0916B49E1AAF66BB4E0F1FCBB789BFDADB1BCDA8BB5E486C1A7951B5FD2DFA06F2EA3676FCA5177C0105AA679CC7B7A487FE7220EF7F; ASP.NET_SessionId=vw1mld10s5lgaabp4nbts1mr",
-        //         },
-        //         responseType: "stream",
-        //     };
-        //     await axios(config2).then((res) => {
-        //         const pat = path.resolve("Admit_Cards", subject + "_" + regn + ".pdf");
-        //         const writeStream = fs.createWriteStream(pat);
-        //         res.data.pipe(writeStream);
-        //         writeStream.on("finish", () => {
-        //             writeStream.close();
-        //             const pdfParser = new PDFParser(this, 1);
-        //             pdfParser.on("pdfParser_dataReady", (pdfData) => {
-        //                 if (subject == "IOQM") {
-        //                     process2(obj, pdfParser.getRawTextContent(pdfData));
-        //                 }
-        //             });
-        //             pdfParser.loadPDF(pat);
-        //         });
-        //     });
-        // };
-        // let arr = [];
+        const result = await axios.get("https://stureg.ioqmexam.in/Login");
+        const $ = cheerio.load(result.data);
+        const token = $('input[name="__RequestVerificationToken"]').val();
+        data.append("__RequestVerificationToken", token);
+        config["headers"]["Cookie"] = result.headers["set-cookie"];
         await axios(config)
             .then(function (response) {
                 extract(obj, response.data);
             })
             .catch(function (error) {
+                console.log("Error", error);
                 console.log("Error occured for current entry");
                 obj["valid"] = "NO";
                 write_to_sheet(obj);
             });
-        // for (let i = 0; i < arr.length; i++) {
-        //     await aux_func(arr[i]);
-        // }
     };
 
-    //make_request(data, obj);
     const func = async () => {
-        for (let i = 0; i < arr.length; i++) {
+        for (let i = 0; i < 1; i++) {
             var FormData = require("form-data");
             var data = new FormData();
             var obj = new Object();
             obj = {
                 "Registration No.": "",
                 DOB: "",
-                Score: "",
                 Valid: "",
             };
             obj["Registration No."] = arr[i]["reg_no"];
@@ -194,7 +146,7 @@ module.exports = function () {
             data.append("DOB", arr[i]["dob"]);
             console.log("Processing Entry ", i + 1);
             const result = await make_request(data, obj);
-            //await delay(2000);
+            //await delay(1000);
         }
     };
 
