@@ -131,7 +131,7 @@ module.exports = function () {
     };
 
     const func = async () => {
-        for (let i = 0; i < 1; i++) {
+        for (let i = 0; i < arr.length; i++) {
             var FormData = require("form-data");
             var data = new FormData();
             var obj = new Object();
